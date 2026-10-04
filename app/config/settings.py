@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     llm_max_tokens: int = Field(default=16000, ge=256)
     llm_timeout_seconds: float = Field(default=300.0, gt=0)
     anthropic_api_key: SecretStr | None = None
+    llm_api_key: SecretStr | None = Field(default=None, description="Key for openai_compatible providers")
+    llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    llm_min_interval_seconds: float = Field(default=0.0, ge=0, description="Throttle between LLM calls (free tiers)")
+    llm_rate_limit_retries: int = Field(default=6, ge=0, description="Retries after HTTP 429")
+    llm_json_mode: bool = Field(default=True, description="Ask OpenAI-compatible servers for JSON output")
 
     database_url: SecretStr = SecretStr(
         "postgresql://agent:agent_dev_only@localhost:5432/database_agent"
@@ -38,8 +43,9 @@ class Settings(BaseSettings):
         password = urlsplit(secrets[0]).password
         if password:
             secrets.append(password)
-        if self.anthropic_api_key:
-            secrets.append(self.anthropic_api_key.get_secret_value())
+        for key in (self.anthropic_api_key, self.llm_api_key):
+            if key:
+                secrets.append(key.get_secret_value())
         return [s for s in secrets if s]
 
     def redacted_database_url(self) -> str:

@@ -44,7 +44,8 @@ def identifier_problems(name: str) -> list[str]:
 
 def normalize_type(type_name: str) -> str:
     """Reduce a type to a comparable base form (length/precision/serial stripped)."""
-    base = re.sub(r"\(.*?\)", "", type_name.lower()).strip()
+    base = re.sub(r"\(.*?\)", "", type_name.lower())
+    base = re.split(r"\s+(?:generated|not\s+null|null|default|primary\s+key|unique|identity)\b", base, maxsplit=1)[0].strip()
     base = re.sub(r"\s+", " ", base)
     return _TYPE_ALIASES.get(base, base)
 

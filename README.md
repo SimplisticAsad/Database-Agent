@@ -88,9 +88,10 @@ All generated objects live in **one agent-owned PostgreSQL schema** (default: th
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `LLM_PROVIDER` | `anthropic` | Provider strategy (only `anthropic` is implemented) |
+| `LLM_PROVIDER` | `anthropic` | `anthropic` or `openai_compatible` (Gemini, Ollama, Groq, OpenRouter, ...) |
 | `LLM_MODEL` | `claude-sonnet-5-5` | Model id |
 | `ANTHROPIC_API_KEY` | – | Required for the Anthropic provider |
+| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_JSON_MODE` | – / Gemini URL / `true` | For `openai_compatible` |
 | `LLM_MAX_TOKENS` / `LLM_TIMEOUT_SECONDS` | `16000` / `300` | Per request |
 | `DATABASE_URL` | local docker URL | Dev database connection string |
 | `TARGET_SCHEMA` | project name | Agent-owned PostgreSQL schema |
@@ -175,7 +176,7 @@ makes logs readable and lets tests script an LLM.
 ## 9. LLM configuration
 
 `LLMProvider.generate(prompt) -> str` is the whole contract. Add a provider by implementing it and registering it in
-`create_provider()` (`app/llm/provider.py`); stages never import a vendor SDK. Only the Anthropic provider exists.
+`create_provider()` (`app/llm/provider.py`); stages never import a vendor SDK. Two providers exist: `anthropic` and `openai_compatible` (e.g. Gemini free tier: `LLM_PROVIDER=openai_compatible`, `LLM_MODEL=gemini-2.5-flash`).
 Credentials come from `ANTHROPIC_API_KEY` (an `ant auth login` profile is not used by the pre-flight check).
 
 ## 10. Running
@@ -247,7 +248,7 @@ isolated but cannot observe real commits across connections; "transaction" tests
   No LLM-generated shell commands are ever executed (none are requested).
 * Architecture normalization checks are heuristics (arrays, repeating groups, copied parent attributes); full 2NF/3NF dependency
   analysis is left to the LLM and reported in `normalization.analysis`.
-* Only the Anthropic provider is implemented; there is no approval workflow, migration/diff mode, or multi-database support.
+* There is no approval workflow, migration/diff mode, or multi-database support.
   Re-running resets the agent-owned schema (generation is from scratch each time).
 
 ## 15. Future Frontend Agent integration

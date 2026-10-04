@@ -177,4 +177,5 @@ def test_identifier_helpers():
     assert identifier_problems("user")
     assert normalize_type("VARCHAR(255)") == normalize_type("text") == "text"
     assert normalize_type("serial") == normalize_type("int4") == "integer"
+    assert normalize_type("integer GENERATED ALWAYS AS IDENTITY") == normalize_type("integer NOT NULL") == "integer"
     assert normalize_type("numeric(12,2)") == normalize_type("decimal")

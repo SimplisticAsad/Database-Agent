@@ -74,3 +74,86 @@ def test_missing_api_key_fails_before_any_database_work(make_settings, monkeypat
     monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
     with pytest.raises(LLMError, match="ANTHROPIC_API_KEY is not set"):
         create_provider(make_settings())
+
+
+def test_openai_compatible_provider_selection_and_secret_handling(make_settings):
+    from app.llm.provider import OpenAICompatibleProvider
+    from app.errors import LLMError
+    with pytest.raises(LLMError, match="LLM_API_KEY is not set"):
+        create_provider(make_settings(llm_provider="openai_compatible"))
+    settings = make_settings(llm_provider="openai_compatible", llm_api_key="AIza-secret-key", llm_model="m")
+    assert isinstance(create_provider(settings), OpenAICompatibleProvider)
+    assert "AIza-secret-key" in settings.secret_values() and "AIza-secret-key" not in repr(settings)
+
+
+class _FakeCompletions:
+    def __init__(self, outcomes):
+        self.outcomes, self.calls = list(outcomes), 0
+
+    def create(self, **_kwargs):
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+def _provider(outcomes, sleeps, **kwargs):
+    import types
+    from app.llm.provider import OpenAICompatibleProvider
+    p = OpenAICompatibleProvider("m", "k", "http://x", 100, 1.0, sleep=sleeps.append, clock=lambda: 0.0, **kwargs)
+    p._client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=_FakeCompletions(outcomes)))
+    return p
+
+
+def _rate_limit(message="quota. Please retry in 2.5s."):
+    import httpx2 as httpx, openai
+    request = httpx.Request("POST", "http://x")
+    return openai.RateLimitError(message, response=httpx.Response(429, request=request), body=None)
+
+
+def _ok(text="{}"):
+    import types
+    msg = types.SimpleNamespace(content=text)
+    return types.SimpleNamespace(choices=[types.SimpleNamespace(message=msg, finish_reason="stop")])
+
+
+def test_rate_limit_is_retried_honouring_server_hint():
+    sleeps: list[float] = []
+    p = _provider([_rate_limit(), _rate_limit("no hint"), _ok("done")], sleeps)
+    assert p.generate("hi") == "done"
+    assert sleeps == [3.5, 10.0]  # "retry in 2.5s" + 1s margin, then exponential fallback
+
+
+def test_rate_limit_retries_are_bounded():
+    from app.errors import LLMError
+    sleeps: list[float] = []
+    p = _provider([_rate_limit()] * 3, sleeps, rate_limit_retries=2)
+    with pytest.raises(LLMError, match="LLM API error"):
+        p.generate("hi")
+    assert len(sleeps) == 2
+
+
+def test_min_interval_throttles_consecutive_calls():
+    sleeps: list[float] = []
+    p = _provider([_ok(), _ok()], sleeps, min_interval=13.0)
+    p.generate("a"); p.generate("b")
+    assert sleeps == [13.0]  # first call free, second waits (clock is frozen at 0)
+
+
+def test_server_overload_503_is_retried_like_a_rate_limit():
+    import httpx2 as httpx, openai
+    request = httpx.Request("POST", "http://x")
+    overload = openai.InternalServerError("high demand", response=httpx.Response(503, request=request), body=None)
+    sleeps: list[float] = []
+    assert _provider([overload, _ok("fine")], sleeps).generate("hi") == "fine"
+    assert sleeps == [5.0]
+
+
+def test_daily_quota_fails_fast_without_sleeping():
+    from app.errors import LLMError
+    sleeps: list[float] = []
+    p = _provider([_rate_limit("GenerateRequestsPerDayPerProjectPerModel-FreeTier")], sleeps)
+    with pytest.raises(LLMError, match="Daily quota exhausted"):
+        p.generate("hi")
+    assert sleeps == []
