@@ -1,0 +1,61 @@
+{
+  "project": "example_shop",
+  "entities": [
+    {
+      "name": "User",
+      "description": "A registered customer",
+      "fields": [
+        {"name": "id", "type": "integer", "description": "Unique identifier"},
+        {"name": "email", "type": "string", "description": "Customer email address", "required": true, "unique": true},
+        {"name": "name", "type": "string", "description": "Customer name", "required": true}
+      ]
+    },
+    {
+      "name": "Category",
+      "description": "A product category; a product can belong to several categories",
+      "fields": [
+        {"name": "id", "type": "integer", "description": "Unique identifier"},
+        {"name": "name", "type": "string", "description": "Category name", "required": true, "unique": true}
+      ]
+    },
+    {
+      "name": "Product",
+      "description": "A product sold by the store",
+      "fields": [
+        {"name": "id", "type": "integer", "description": "Unique identifier"},
+        {"name": "name", "type": "string", "description": "Product name", "required": true},
+        {"name": "price", "type": "decimal", "description": "Product unit price", "required": true},
+        {"name": "stock", "type": "integer", "description": "Units currently in stock", "required": true}
+      ]
+    },
+    {
+      "name": "Order",
+      "description": "A customer order",
+      "fields": [
+        {"name": "id", "type": "integer", "description": "Unique identifier"},
+        {"name": "user_id", "type": "integer", "description": "User who placed the order", "required": true,
+         "references": {"entity": "User", "field": "id"}},
+        {"name": "created_at", "type": "datetime", "description": "Order creation time"}
+      ]
+    },
+    {
+      "name": "OrderItem",
+      "description": "One product line within an order, with the quantity and the unit price at purchase time",
+      "fields": [
+        {"name": "id", "type": "integer", "description": "Unique identifier"},
+        {"name": "order_id", "type": "integer", "description": "Owning order", "required": true,
+         "references": {"entity": "Order", "field": "id"}},
+        {"name": "product_id", "type": "integer", "description": "Purchased product", "required": true,
+         "references": {"entity": "Product", "field": "id"}},
+        {"name": "quantity", "type": "integer", "description": "Units purchased", "required": true},
+        {"name": "unit_price", "type": "decimal", "description": "Price per unit when purchased", "required": true}
+      ]
+    }
+  ],
+  "relationships": [
+    {"from_entity": "User", "to_entity": "Order", "cardinality": "one_to_many", "description": "A user places many orders"},
+    {"from_entity": "Order", "to_entity": "OrderItem", "cardinality": "one_to_many", "description": "An order has many items"},
+    {"from_entity": "Product", "to_entity": "OrderItem", "cardinality": "one_to_many", "description": "A product appears in many order items"},
+    {"from_entity": "Product", "to_entity": "Category", "cardinality": "many_to_many", "description": "Products are classified in categories"}
+  ]
+}

@@ -1,0 +1,20 @@
+# Local, throw-away PostgreSQL for development. Do NOT point the agent at a production database.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-admin_dev_only}
+      AGENT_DB_PASSWORD: ${AGENT_DB_PASSWORD:-agent_dev_only}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d database_agent"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  pgdata:
